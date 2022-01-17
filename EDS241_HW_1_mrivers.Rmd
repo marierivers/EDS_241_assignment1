@@ -106,7 +106,7 @@ xxx
 \noindent Figure 1 shows the expected negative relationship between vehicle weight and MPG.
 
 # Question d:
-Estimate a OLS regression of `LowBirthWeight` on `PM25`. Report the estimated slope coefficient and its heteroskedasticity-robust standard error. Interpret the estimated slop coefficient. Is the effect of PM2.5 on low birth weight statistically significant at the 5% level?
+Estimate a OLS regression of `LowBirthWeight` on `PM25`. Report the estimated slope coefficient and its heteroskedasticity-robust standard error. Interpret the estimated slope coefficient. Is the effect of PM2.5 on low birth weight statistically significant at the 5% level?
 
 $$\text{percent low birth weight}_i=\beta_{0}+\beta_{1} \cdot PM2.5 + \varepsilon_i$$
 ```{r}
@@ -144,7 +144,7 @@ fit <- ols_model$fitted.values
 ```
 
 
-**The estimated slope coefficient for this model is `r round(slope_coef, 3)`. The heteroskedasticity-robust standard error for this estimated slope coefficient is `r round(std_err, 3)` xxx...**
+**The estimated slope coefficient for this model is `r round(slope_coef, 3)`. The heteroskedasticity-robust standard error for this estimated slope coefficient is `r round(std_err, 3)` xxx...include units**
 
 **The estimated slope coefficient means that for a one unit increase in the concentration of PM2.5, percent low birth weight will increase by `r round(std_err, 3)` Since the p-value is  < 0.05, the effect of PM2.5 on percent low birth weight is statistically significant at the 5 % level.**
 
@@ -209,24 +209,108 @@ mean_policy_low_birth_wt_ci_high
 
 **Following an air quality policy that reduces PM2.5 concentrations by 2 microns per cubic meters, the predicted new average value of percent low birth weight is `r round(mean_policy_low_birth_wt, 3)``**
 
-**Tee 95% confidence interval for the predicted new average value of percent low birth weight ranges from `r round(mean_policy_low_birth_wt_ci_low, 3)` to  `r round(mean_policy_low_birth_wt_ci_high, 3)`. This means that there is a 95% chance that this interval includes the true average value of percent low birth weight based on the effect of the new policy on PM2.5 concentrations.**
+**The 95% confidence interval for the predicted new average value of percent low birth weight ranges from `r round(mean_policy_low_birth_wt_ci_low, 3)` to  `r round(mean_policy_low_birth_wt_ci_high, 3)`. This means that there is a 95% chance that this interval includes the true average value of percent low birth weight based on the effect of the new policy on PM2.5 concentrations.**
 
-
-```{r}
-
-```
 
 # Question f:
 Add the variable Poverty as an explanatory variable to the regression in (d). Interpret the estimated coefficient on Poverty. What happens to the estimated coefficient on PM2.5, compared to the regression in (d). Explain.
 ```{r}
-
+pm25_poverty_model <- lm_robust(formula = LowBirthWeight ~ PM25 + Poverty, data = data)
+summary(pm25_poverty_model)
 ```
+
+```{r}
+poverty_coef <- pm25_poverty_model$coefficients[3]
+poverty_coef
+```
+
+```{r}
+pm25_coef_2 <- pm25_poverty_model$coefficients[2]
+pm25_coef_2
+```
+
+**The estimated coefficient on poverty is `r round(p0verty_coef, 3)`. This mean that for a one unit increase in poverty, percent low birth weighth will increase by `r round(poverty_coef, 3)` while holding PM2.5 constanct**  xxx...check/clean up this interpretation
+
+**In this model, the estimated coefficient on PM2.5 is lower than the coefficient estimated with the model that did not include poverty. This suggests that PM2.5 is not the only variable to influences low birth weight.**
+
+
+```{r, fig.width = 4, fig.height = 3, eval=TRUE, echo=FALSE}
+# xxx...graph just for my reference
+pov_model_plot <- ggplot(data = data, aes(x = Poverty, y = LowBirthWeight)) +
+  geom_point() +
+  geom_smooth(method = lm)
+pov_model_plot
+```
+
+
 
 # Question g:
 From the regression in (f), test the null hypothesis that the effect of PM2.5 is equal to the effect of Poverty.
-```{r}
 
+**null hypothesis:**
+There is no difference in the estimated slope coefficients for PM2.5 and poverty.  
+
+$$H_{0}: \beta_{1,PM2.5} - \beta_{2,poverty} = 0$$
+
+**alternative hypothesis:** 
+There is a difference in the estimated slope coefficient for PM2.5 and poverty.
+
+$$H_{A}: \beta_{1,PM2.5} - \beta_{2,poverty} \neq 0$$
+```{r}
+se_pm25 <- pm25_poverty_model$std.error[2]
+se_pm25
+
+se_poverty <- pm25_poverty_model$std.error[3]
+se_poverty
+
+n_pm25 <- length(data$LowBirthWeight[!is.na(data$LowBirthWeight)])
+n_pm25
+
+n_poverty <- data %>% 
+  filter(!is.na(Poverty)) %>% 
+  filter(!is.na(LowBirthWeight)) %>%
+  nrow()
+n_poverty
 ```
+
+```{r}
+# xxx
+# data_pov <- data %>% 
+#   filter(!is.na(Poverty)) %>% 
+#   filter(!is.na(LowBirthWeight)) %>%
+#   nrow()
+# data_pov
+```
+
+
+```{r}
+# not sure if this is the correct method
+se <- sqrt(((se_pm25^2) / n_pm25) + ((se_poverty^2) / n_poverty))
+se
+```
+
+```{r}
+point_est <- pm25_coef_2 - poverty_coef
+point_est
+```
+
+```{r}
+z_score <- (point_est - 0) / se
+z_score
+```
+
+```{r}
+p_value <- 2 * pnorm(point_est, mean = 0, sd = se, lower.tail = FALSE)
+p_value
+```
+**Since the p-values is <0.05 we reject the null hypothesis that the effect of PM2.5 is equal to the effect of poverty.** xxx...check this
+
+```{r}
+# xxx
+colSums(!is.na(data))
+```
+
+
 
 xxx...delete everything below here
 
