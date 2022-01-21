@@ -34,9 +34,7 @@ for (i in packages) {
 options(scipen=999) # not scientific notation
 ```
 
-\noindent In this assignment, we use air quality data in R to investigate the relationship between PM2.5 and low birth weight in California. The data came from CalEnviroScreen 4.0, a mapping and data tool produced by the California Office of Environmental Health Hazards Assessment (OEHHA). The data are compiled and constructed from a variety of sources and cover all 9,035 census tracts in California. Source: [https://oehha.ca.gov/calenviroscreen/report/calenviroscreen-40](https://oehha.ca.gov/calenviroscreen/report/calenviroscreen-40)
-
-xxx...take a closer look at the data dictionary
+\noindent In this assignment, we use air quality data in R to investigate the relationship between PM2.5 and low birth weight in California. The data came from CalEnviroScreen 4.0, a mapping and data tool produced by the California Office of Environmental Health Hazards Assessment (OEHHA). The data are compiled and constructed from a variety of sources and cover all 8,035 census tracts in California. Source: [https://oehha.ca.gov/calenviroscreen/report/calenviroscreen-40](https://oehha.ca.gov/calenviroscreen/report/calenviroscreen-40)
 
 # Read and Clean Data
 ```{r warning=FALSE}
@@ -46,74 +44,70 @@ data <- read_xlsx(here("data", "CES4.xlsx"), sheet = "CES4.0FINAL_results") %>%
   mutate(LowBirthWeight = as.numeric(LowBirthWeight))
 ```
 
-```{r}
-# data <- read_xlsx(here("data", "CES4.xlsx"), sheet = "CES4.0FINAL_results") %>% 
-#   rename(CensusTract = "Census Tract", TotalPopulation = "Total Population", CaliforniaCounty = "California County", LowBirthWeight = "Low Birth Weight", PM25 = "PM2.5") %>% 
-#   select(CensusTract, TotalPopulation, CaliforniaCounty, LowBirthWeight, PM25, Poverty) %>% 
-#   mutate(LowBirthWeight = as.numeric(LowBirthWeight))
-```
-
 # Question a:
 What is the average concentration of PM2.5 across all census tracts in California?
 ```{r}
 mean_pm25 <- mean(data$PM25)
 ```
 
-**The average concentration of PM2.5 across all census tracts in California is `r round(mean_pm25, 2)` $\mu g/m^3$.**
+\noindent Answer: The average concentration of PM2.5 across all census tracts in California is `r round(mean_pm25, 2)` $\mu g/m^3$.
 
 # Question b:
 What county has the highest level of poverty in California?
 ```{r}
-county_pov <- data %>% 
+county_pov <- data %>%
+  mutate(pov_per_capita = Poverty/TotalPopulation) %>% 
   group_by(CaliforniaCounty) %>% 
-  summarise(mean_pov = mean(Poverty, na.rm = TRUE))
+  summarise(mean_pov = mean(Poverty, na.rm = TRUE),
+            mean_pov_per_capita = mean(pov_per_capita, na.rm = TRUE)) 
 
 county_max_pov <- county_pov$CaliforniaCounty[which.max(county_pov$mean_pov)]
+county_max_pov_per_capita <- county_pov$CaliforniaCounty[which.max(county_pov$mean_pov_per_capita)]
 ```
 
-**`r county_max_pov` County has the highest level of poverty in California based on mean poverty for all census tracts in each county**
+\noindent Answer: `r county_max_pov` County has the highest level of poverty in California based on mean poverty for all census tracts in each county. I decided not to use the county with the highest level of poverty per capital (which would have been `r county_max_pov_per_capita`) because according to the CES4 data dictionary the `Poverty` variable represents the percent of population living below two times the federal poverty level.
 
-Note: there are 75 census tracts with NA values for poverty
+\noindent Note: there are 75 census tracts with NA values for poverty
 
 # Question c:
 Make a histogram depicting the distribution of percent low birth weight and PM2.5
+
 ```{r eval=TRUE, echo=FALSE, fig.height=5, fig.width=7}
 low_birth_weight_histogram <- ggplot(data = data, aes(x = LowBirthWeight)) +
   geom_histogram(fill = "seagreen") +
-  labs(title = "Percent Low Birth Weight for California Census Tracts",
-       subtitle = "California Office of Environmental Health Hazards Assessment (OEHHA)",
-       caption = "Data Source: CalEnviroScreen 4.0",
-       x = "Percent Low Birth Rate")
+  labs(x = "Percent Low Birth Rate")
+```
+
+<center>**Figure 1: Percent Low Birth Weight for California Census Tracts**</center>
+```{r, eval=TRUE, echo=FALSE}
 low_birth_weight_histogram
 ```
+
+\noindent Figure 1 shows the distribution of percent low birth weights for California Census Tracts as reported by the California Office of Environmental Health Assessment (OEHHA). Data Source: CalEnviroScreen 4.0.
 
 ```{r , fig.width = 7, fig.height = 5, eval=TRUE, echo=FALSE}
 pm25_histogram <- ggplot(data = data, aes(x = PM25)) +
   geom_histogram(fill = "steelblue3") +
-  labs(title = "Air Quality for California Census Tracts",
-       subtitle = "California Office of Environmental Health Hazards Assessment (OEHHA)",
-       caption = "Data Source: CalEnviroScreen 4.0",
-       x = "PM2.5 (micrograms per cubic meter)")
+  labs(x = "PM2.5 (micrograms per cubic meter)")
+```
+
+\newpage
+<center>**Figure 2: Air Quality for California Census Tracts**</center>
+```{r, eval=TRUE, echo=FALSE}
 pm25_histogram
 ```
 
-xxx
-<center>**Figure 1: MPG and vehicle weight**</center>
-```{r , fig.width = 4, fig.height = 3, eval=TRUE, echo=FALSE}
-# plot_1
-```
-
-\noindent Figure 1 shows the expected negative relationship between vehicle weight and MPG.
+\noindent Figure 2 shows the distribution of annual mean PM 2.5 concentrations for California Census Tracts as reported by the California Office of Environmental Health Assessment (OEHHA). Data Source: CalEnviroScreen 4.0.
 
 # Question d:
 Estimate a OLS regression of `LowBirthWeight` on `PM25`. Report the estimated slope coefficient and its heteroskedasticity-robust standard error. Interpret the estimated slope coefficient. Is the effect of PM2.5 on low birth weight statistically significant at the 5% level?
 
 $$\text{percent low birth weight}_i=\beta_{0}+\beta_{1} \cdot PM2.5 + \varepsilon_i$$
 ```{r}
-# xxx...maybe use glm instead of lm.fit
 ols_model <- lm_robust(formula = LowBirthWeight ~ PM25, data = data)
 summary(ols_model)
 ```
+
 ```{r}
 intercept <- ols_model$coefficients[1]
 intercept
@@ -126,7 +120,6 @@ slope_coef
 ```
 
 ```{r}
-#xxx...should this be adjusted R squared instead
 std_err <- ols_model$std.error[2]
 std_err
 ```
@@ -138,22 +131,26 @@ ci_upper <- ols_model$conf.high[2]
 ci_upper
 ```
 
-
 ```{r}
+# xxx
 fit <- ols_model$fitted.values
 ```
 
+\noindent Answer: The estimated slope coefficient for this model is `r round(slope_coef, 3)`. The estimated slope coefficient means that for a one unit increase in the concentration of PM2.5, percent low birth weight will increase by `r round(std_err, 3)`. The heteroskedasticity-robust standard error for this estimated slope coefficient is `r round(std_err, 3)`. Since the p-value is < 0.05, the effect of PM2.5 on percent low birth weight is statistically significant at the 5 % level.
 
-**The estimated slope coefficient for this model is `r round(slope_coef, 3)`. The heteroskedasticity-robust standard error for this estimated slope coefficient is `r round(std_err, 3)` xxx...include units**
-
-**The estimated slope coefficient means that for a one unit increase in the concentration of PM2.5, percent low birth weight will increase by `r round(std_err, 3)` Since the p-value is  < 0.05, the effect of PM2.5 on percent low birth weight is statistically significant at the 5 % level.**
 
 ```{r}
 ols_model_plot <- ggplot(data = data, aes(x = PM25, y = LowBirthWeight)) +
   geom_point() +
   geom_smooth(method = lm)
+```
+\newpage
+<center>**Figure 3: OLS Regression of Low Birth Weight on PM 2.5**</center>
+```{r, eval=TRUE, echo=FALSE}
 ols_model_plot
 ```
+
+\noindent Figure 3 shows a positive correlation between low birth weight and PM 2.5 based on an Ordinary Least Squares Regression model of low birth weight on PM 2.5.
 
 xxx...read up on "heteroskedasticity-robust standard errors"
 
@@ -168,7 +165,6 @@ fit <- data.frame(ols_model$fitted.values)
 
 fit2 <- data.frame(predict(ols_model, newdata = data, se.fit = TRUE, interval = "confidence"))
 ```
-
 
 # Question e:
 Suppose a new air quality policy is expected to reduce PM2.5 concentration by 2 micrograms per cubic meters. Predict the new average value of low birth weight and derive its 95% confidence interval. Interpret the 95% confidence interval.
@@ -211,6 +207,7 @@ mean_policy_low_birth_wt_ci_high
 
 **The 95% confidence interval for the predicted new average value of percent low birth weight ranges from `r round(mean_policy_low_birth_wt_ci_low, 3)` to  `r round(mean_policy_low_birth_wt_ci_high, 3)`. This means that there is a 95% chance that this interval includes the true average value of percent low birth weight based on the effect of the new policy on PM2.5 concentrations.**
 
+xxx...state what the original low birht wt is and talk about how much it decreases due to the policy
 
 # Question f:
 Add the variable Poverty as an explanatory variable to the regression in (d). Interpret the estimated coefficient on Poverty. What happens to the estimated coefficient on PM2.5, compared to the regression in (d). Explain.
@@ -229,7 +226,7 @@ pm25_coef_2 <- pm25_poverty_model$coefficients[2]
 pm25_coef_2
 ```
 
-**The estimated coefficient on poverty is `r round(p0verty_coef, 3)`. This mean that for a one unit increase in poverty, percent low birth weighth will increase by `r round(poverty_coef, 3)` while holding PM2.5 constanct**  xxx...check/clean up this interpretation
+**The estimated coefficient on poverty is `r round(poverty_coef, 3)`. This mean that for a one unit increase in poverty, percent low birth weighth will increase by `r round(poverty_coef, 3)` while holding PM2.5 constanct**  xxx...check/clean up this interpretation
 
 **In this model, the estimated coefficient on PM2.5 is lower than the coefficient estimated with the model that did not include poverty. This suggests that PM2.5 is not the only variable to influences low birth weight.**
 
