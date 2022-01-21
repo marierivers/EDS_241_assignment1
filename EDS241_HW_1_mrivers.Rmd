@@ -19,7 +19,7 @@ knitr::opts_chunk$set(fig.width = 4, fig.height = 3,
 
 # load packages
 packages=c("stargazer", "here", "tidyr", "dplyr","stringr", "janitor", 
-           "cowplot", "ggplot2", "tinytex", "datasets", "tibble", "tidyverse", "readxl", "estimatr")
+           "cowplot", "ggplot2", "tinytex", "datasets", "tibble", "tidyverse", "readxl", "estimatr", "car")
 
 for (i in packages) {
   if (require(i,character.only=TRUE)==FALSE) {
@@ -31,7 +31,7 @@ for (i in packages) {
 }
 
 #devtools::install_github('rstudio/rmarkdown')
-options(scipen=999) # not scientific notation
+options(scipen=10) # not scientific notation
 ```
 
 \noindent In this assignment, we use air quality data in R to investigate the relationship between PM2.5 and low birth weight in California. The data came from CalEnviroScreen 4.0, a mapping and data tool produced by the California Office of Environmental Health Hazards Assessment (OEHHA). The data are compiled and constructed from a variety of sources and cover all 8,035 census tracts in California. Source: [https://oehha.ca.gov/calenviroscreen/report/calenviroscreen-40](https://oehha.ca.gov/calenviroscreen/report/calenviroscreen-40)
@@ -104,39 +104,52 @@ Estimate a OLS regression of `LowBirthWeight` on `PM25`. Report the estimated sl
 
 $$\text{percent low birth weight}_i=\beta_{0}+\beta_{1} \cdot PM2.5 + \varepsilon_i$$
 ```{r}
-ols_model <- lm_robust(formula = LowBirthWeight ~ PM25, data = data)
-summary(ols_model)
+ols_model_robust <- lm_robust(formula = LowBirthWeight ~ PM25, data = data)
 ```
 
 ```{r}
-intercept <- ols_model$coefficients[1]
+# use lm to estimate coefficients
+ols_model <- lm(formula = LowBirthWeight ~ PM25, data = data)
+
+# adjust standard errors using estimatr::starprep() instead of estimatr::lm_robust()
+se_ols_model <- starprep(ols_model)
+```
+
+
+```{r, results = 'asis', echo = FALSE}
+stargazer(ols_model, se = se_ols_model,
+          type = "latex", ci=FALSE, no.space = TRUE, 
+          header = FALSE, omit = c("Constant"), omit.stat = c("adj.rsq","ser", "f"),
+          covariate.labels = c("PM 2.5 concentration"), dep.var.labels = c("percent low birth weight"),
+          dep.var.caption = c(""), notes = c("Robust standard errors in parentheses"),
+          title = "Low Birth Weight and PM 2.5 concentration", table.placement = "H")
+```
+
+
+```{r}
+intercept <- ols_model_robust$coefficients[1]
 intercept
 ```
 
 
 ```{r}
-slope_coef <- ols_model$coefficients[2]
+slope_coef <- ols_model_robust$coefficients[2]
 slope_coef
 ```
 
 ```{r}
-std_err <- ols_model$std.error[2]
+std_err <- ols_model_robust$std.error[2]
 std_err
 ```
 ```{r}
-ci_lower <- ols_model$conf.low[2]
+ci_lower <- ols_model_robust$conf.low[2]
 ci_lower
 
-ci_upper <- ols_model$conf.high[2]
+ci_upper <- ols_model_robust$conf.high[2]
 ci_upper
 ```
 
-```{r}
-# xxx
-fit <- ols_model$fitted.values
-```
-
-\noindent Answer: The estimated slope coefficient for this model is `r round(slope_coef, 3)`. The estimated slope coefficient means that for a one unit increase in the concentration of PM2.5, percent low birth weight will increase by `r round(std_err, 3)`. The heteroskedasticity-robust standard error for this estimated slope coefficient is `r round(std_err, 3)`. Since the p-value is < 0.05, the effect of PM2.5 on percent low birth weight is statistically significant at the 5 % level.
+\noindent Answer: The estimated slope coefficient for this model is `r round(slope_coef, 3)`. The estimated slope coefficient means that for a one unit increase in the concentration of PM2.5, percent low birth weight will increase by `r round(slope_coef, 3)`. The heteroskedasticity-robust standard error for this estimated slope coefficient is `r round(std_err, 3)`. Since the p-value is < 0.05, the effect of PM2.5 on percent low birth weight is statistically significant at the 5 % level.
 
 
 ```{r}
@@ -152,94 +165,39 @@ ols_model_plot
 
 \noindent Figure 3 shows a positive correlation between low birth weight and PM 2.5 based on an Ordinary Least Squares Regression model of low birth weight on PM 2.5.
 
-xxx...read up on "heteroskedasticity-robust standard errors"
-
-```{r}
-# xxx...experiment chunk
-
-# data_rm_na <- data %>% 
-#   na.omit(LowBirthWeight) %>% 
-#   mutate(model_low_birth_wt = ols_model$fitted.values)
-
-fit <- data.frame(ols_model$fitted.values)
-
-fit2 <- data.frame(predict(ols_model, newdata = data, se.fit = TRUE, interval = "confidence"))
-```
-
-# Question e:
-Suppose a new air quality policy is expected to reduce PM2.5 concentration by 2 micrograms per cubic meters. Predict the new average value of low birth weight and derive its 95% confidence interval. Interpret the 95% confidence interval.
-
-```{r}
-
-# data_reduced_PM <- data %>% 
-#   na.omit(LowBirthWeight) %>% 
-#   mutate(PM25_reduced = PM25 - 2) %>%
-#   mutate(PM25_reduced = case_when(
-#     PM25_reduced < 0 ~ 0,
-#     PM25_reduced >= 0 ~ PM25_reduced)) %>% 
-#   mutate(test = slope_coef * PM25 + intercept) %>% 
-#   mutate(test_policy = slope_coef * PM25_reduced + intercept)
-
-  #mutate(model_low_birth_wt = ols_model$fitted.values)
-
-policy_results <- data %>% 
-  mutate(PM25_reduced = PM25 - 2) %>%
-  mutate(PM25_reduced = case_when(
-    PM25_reduced < 0 ~ 0,
-    PM25_reduced >= 0 ~ PM25_reduced)) %>% 
-  mutate(policy_low_birth_wt = slope_coef * PM25_reduced + intercept) %>% 
-  mutate(policy_ci_low = (ci_lower * PM25_reduced + intercept)) %>% 
-  mutate(policy_ci_high = (ci_upper * PM25_reduced + intercept))
-```
-
-```{r}
-mean_policy_low_birth_wt <- mean(policy_results$policy_low_birth_wt)
-mean_policy_low_birth_wt
-
-mean_policy_low_birth_wt_ci_low <- mean(policy_results$policy_ci_high)
-mean_policy_low_birth_wt_ci_low
-
-mean_policy_low_birth_wt_ci_high <- mean(policy_results$policy_ci_high)
-mean_policy_low_birth_wt_ci_high
-```
-
-**Following an air quality policy that reduces PM2.5 concentrations by 2 microns per cubic meters, the predicted new average value of percent low birth weight is `r round(mean_policy_low_birth_wt, 3)``**
-
-**The 95% confidence interval for the predicted new average value of percent low birth weight ranges from `r round(mean_policy_low_birth_wt_ci_low, 3)` to  `r round(mean_policy_low_birth_wt_ci_high, 3)`. This means that there is a 95% chance that this interval includes the true average value of percent low birth weight based on the effect of the new policy on PM2.5 concentrations.**
-
-xxx...state what the original low birht wt is and talk about how much it decreases due to the policy
-
 # Question f:
 Add the variable Poverty as an explanatory variable to the regression in (d). Interpret the estimated coefficient on Poverty. What happens to the estimated coefficient on PM2.5, compared to the regression in (d). Explain.
 ```{r}
-pm25_poverty_model <- lm_robust(formula = LowBirthWeight ~ PM25 + Poverty, data = data)
-summary(pm25_poverty_model)
+pm25_poverty_model_robust <- lm_robust(formula = LowBirthWeight ~ PM25 + Poverty, data = data)
+```
+```{r}
+# use lm to estimate coefficients
+pm25_poverty_model <- lm(formula = LowBirthWeight ~ PM25 + Poverty, data = data)
+
+# adjust standard errors using estimatr::starprep() instead of estimatr::lm_robust
+se_pm25_poverty_model <- starprep(pm25_poverty_model)
+```
+
+```{r , results = 'asis', echo = FALSE}
+stargazer(ols_model, pm25_poverty_model, se = c(se_ols_model, se_pm25_poverty_model),
+          type = "latex", ci=FALSE, no.space = TRUE, 
+          header = FALSE, omit = c("Constant"), omit.stat = c("adj.rsq","ser", "f"),
+          covariate.labels = c("PM 2.5 concentration", "Poverty"), dep.var.labels = c("percent low birth weight"),
+          dep.var.caption = c(""), notes = c("Robust standard errors in parentheses"),
+          title = "Low Birth Weight on PM 2.5 concentration and Poverty", table.placement = "H")
 ```
 
 ```{r}
-poverty_coef <- pm25_poverty_model$coefficients[3]
+poverty_coef <- pm25_poverty_model_robust$coefficients[3]
 poverty_coef
 ```
 
 ```{r}
-pm25_coef_2 <- pm25_poverty_model$coefficients[2]
+pm25_coef_2 <- pm25_poverty_model_robust$coefficients[2]
 pm25_coef_2
 ```
 
-**The estimated coefficient on poverty is `r round(poverty_coef, 3)`. This mean that for a one unit increase in poverty, percent low birth weighth will increase by `r round(poverty_coef, 3)` while holding PM2.5 constanct**  xxx...check/clean up this interpretation
-
-**In this model, the estimated coefficient on PM2.5 is lower than the coefficient estimated with the model that did not include poverty. This suggests that PM2.5 is not the only variable to influences low birth weight.**
-
-
-```{r, fig.width = 4, fig.height = 3, eval=TRUE, echo=FALSE}
-# xxx...graph just for my reference
-pov_model_plot <- ggplot(data = data, aes(x = Poverty, y = LowBirthWeight)) +
-  geom_point() +
-  geom_smooth(method = lm)
-pov_model_plot
-```
-
-
+\noindent The estimated coefficient on poverty is `r round(poverty_coef, 3)`. This mean that for a one unit increase in poverty, percent low birth weight will increase by `r round(poverty_coef, 3)` while holding PM2.5 constant. In this model, the estimated coefficient on PM2.5 is lower than the coefficient estimated with the model that did not include poverty. This suggests that PM2.5 is not the only variable to influences low birth weight.
 
 # Question g:
 From the regression in (f), test the null hypothesis that the effect of PM2.5 is equal to the effect of Poverty.
@@ -253,136 +211,8 @@ $$H_{0}: \beta_{1,PM2.5} - \beta_{2,poverty} = 0$$
 There is a difference in the estimated slope coefficient for PM2.5 and poverty.
 
 $$H_{A}: \beta_{1,PM2.5} - \beta_{2,poverty} \neq 0$$
-```{r}
-se_pm25 <- pm25_poverty_model$std.error[2]
-se_pm25
-
-se_poverty <- pm25_poverty_model$std.error[3]
-se_poverty
-
-n_pm25 <- length(data$LowBirthWeight[!is.na(data$LowBirthWeight)])
-n_pm25
-
-n_poverty <- data %>% 
-  filter(!is.na(Poverty)) %>% 
-  filter(!is.na(LowBirthWeight)) %>%
-  nrow()
-n_poverty
-```
 
 ```{r}
-# xxx
-# data_pov <- data %>% 
-#   filter(!is.na(Poverty)) %>% 
-#   filter(!is.na(LowBirthWeight)) %>%
-#   nrow()
-# data_pov
+linearHypothesis(model = pm25_poverty_model, hypothesis.matrix = c("PM25=Poverty"), white.adjust = "hc2")
 ```
-
-
-```{r}
-# not sure if this is the correct method
-se <- sqrt(((se_pm25^2) / n_pm25) + ((se_poverty^2) / n_poverty))
-se
-```
-
-```{r}
-point_est <- pm25_coef_2 - poverty_coef
-point_est
-```
-
-```{r}
-z_score <- (point_est - 0) / se
-z_score
-```
-
-```{r}
-p_value <- 2 * pnorm(point_est, mean = 0, sd = se, lower.tail = FALSE)
-p_value
-```
-**Since the p-values is <0.05 we reject the null hypothesis that the effect of PM2.5 is equal to the effect of poverty.** xxx...check this
-
-```{r}
-# xxx
-colSums(!is.na(data))
-```
-
-
-
-xxx...delete everything below here
-
-# Clean and plot data
-
-\noindent The following code loads and cleans the data.
-
-```{r , include=TRUE}
-
-# Load data
-
-data("mtcars")
-raw_data <- mtcars
-
-# Clean data
-
-## Add model names as a column 
-## [this is just an example manipulation, I rarely assign rownames to a column]
-
-clean_data <- tibble::rownames_to_column(raw_data, "model")
-
-
-```
-
-\noindent The code chunk below shows how to produce a scatter plot of MPG against weight.  
-
-```{r , include=TRUE}
-
-# Plot 1
-
-plot_1 <- ggplot(clean_data, aes(y=mpg, x = wt))+
-  geom_point()+
-  theme_cowplot(14)+
-  labs(x = "Weight (1000 lbs)", y = "Miles per gallon")
-
-```
-
-\newpage
-<center>**Figure 1: MPG and vehicle weight**</center>
-```{r , fig.width = 4, fig.height = 3, eval=TRUE, echo=FALSE}
-plot_1
-```
-
-\noindent Figure 1 shows the expected negative relationship between vehicle weight and MPG.
-
-# Run and interpret regression models
-
-\noindent In order to more formally analyze the relationship between MPG, vehicle weight, and cylinders we estimate the following regression: 
-
-\begin{align}
-  Y_{i} = \beta_0 + \beta_1 X_{1i} + \beta_2 X_{2i} + u_{i}
-\end{align}
-
-\noindent where $Y_{i}$ is MPG for vehicle model $i$, $X_{1i}$ is the vehicle weight, $X_{2i}$ is the number of cylinders in the engine, and $u_{i}$ the regression error term. We will consider a regression including only vehicle weight, and a regression including vehicle weight and number of cylinders.
-
-\medskip
-
-\noindent In R, we run the following code: 
-
-```{r , include=TRUE}
-
-model_1 <- lm(mpg ~ wt, data=clean_data)
-model_2 <- lm(mpg ~ wt + cyl, data=clean_data)
-
-```
-
-\noindent Table 1 shows the estimated coeffients from estimating equation (1). 
-
-```{r , results = 'asis', echo = FALSE}
-stargazer(model_1, model_2, type = "latex", ci=FALSE, no.space = TRUE, 
-          header = FALSE, omit = c("Constant"), omit.stat = c("adj.rsq","ser", "f"),
-          covariate.labels = c("Weight (1000 lbs)", "Cylinders"), dep.var.labels = c("MPG"),
-          dep.var.caption = c(""),
-          title = "MPG and vehicle weight", table.placement = "H")
-
-```
-
-\noindent In model (1), the estimated $\beta_{1}$ coefficient implies that a 1000 pound increase in vehicle weight reduces miles per gallon by 5.3 miles. Adding the number of cylinders in model (2) reduces $\hat{\beta_{1}}$ from -5.3 to -3.2.
+\noindent Answer: Based on these results, we reject the null hypothesis that $\beta_{1,PM2.5} = \beta_{2,poverty}$.
